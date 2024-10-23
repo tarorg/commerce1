@@ -1,0 +1,202 @@
+---
+import Layout from '../../layouts/Layout.astro';
+
+interface Product {
+  id: number;
+  name: string;
+  collection: string;
+  price: number;
+  mrp: number;
+  image: string;
+}
+
+export async function getStaticPaths() {
+  const url = "https://commerce-tarframework.turso.io/v2/pipeline";
+  const authToken = "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3Mjk2NzQwNjQsImlkIjoiN2ZiNTFhMTgtYjU1My00Y2M2LTkwZWItZDE0ZTcxNDI5ODlhIn0.zxIjODPlBzNcAgQQ70xZj2sI7j7RSAHpYPQUtvyoAHDb4nLGzHAPiVvnJ6qeK7-00F8A6Lz__CSPjdITPZ31BQ";
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${authToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      requests: [
+        { type: "execute", stmt: { sql: "SELECT * FROM Instances" } },
+        { type: "close" },
+      ],
+    }),
+  });
+
+  const data = await response.json();
+  const products: Product[] = data.results[0].response.result.rows.map((row: any[]) => ({
+    id: parseInt(row[0].value) || 0,
+    name: row[2].value || 'Unknown',
+    collection: row[5].value || 'Unknown',
+    price: parseInt(row[15].value) || 0,
+    mrp: parseInt(row[16].value) || 0,
+    image: row[11].value ? row[11].value.split(',')[0].trim() : '/path/to/default-image.jpg'
+  }));
+
+  return products.map((product: Product) => ({
+    params: { id: product.id.toString() },
+    props: { product },
+  }));
+}
+
+const { product } = Astro.props;
+
+// Function to add product to cart
+async function addToCart(productId: number, name: string, price: number, quantity: number) {
+  const url = "https://commerce-tarframework.turso.io/v2/pipeline";
+  const authToken = "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3Mjk2NzQwNjQsImlkIjoiN2ZiNTFhMTgtYjU1My00Y2M2LTkwZWItZDE0ZTcxNDI5ODlhIn0.zxIjODPlBzNcAgQQ70xZj2sI7j7RSAHpYPQUtvyoAHDb4nLGzHAPiVvnJ6qeK7-00F8A6Lz__CSPjdITPZ31BQ";
+
+  // For now, we'll use a hardcoded userid. In a real application, you'd get this from the user's session.
+  const userid = 1;
+
+  const requestBody = JSON.stringify({
+    requests: [
+      { 
+        type: "execute", 
+        stmt: { 
+          sql: "INSERT INTO cart (userid, product_id, name, price, quantity) VALUES (?, ?, ?, ?, ?)",
+          args: [
+            { type: "integer", value: userid },
+            { type: "integer", value: productId },
+            { type: "text", value: name },
+            { type: "float", value: price },
+            { type: "integer", value: quantity }
+          ]
+        } 
+      },
+      { type: "close" },
+    ],
+  });
+
+  console.log('Request body:', requestBody);
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+        "Content-Type": "application/json",
+      },
+      body: requestBody,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Response error:', errorText);
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+    }
+
+    const data = await response.json();
+    console.log('Response data:', data);
+    return { success: true, data };
+  } catch (error) {
+    console.error('Error adding to cart:', error);
+    return { success: false, error: error.message || 'Failed to add to cart' };
+  }
+}
+
+---
+
+<Layout title={product.name}>
+  <div class="bg-white pt-24">
+    <div class="container mx-auto px-4 py-8">
+      <div class="flex flex-wrap -mx-4">
+        <div class="w-full md:w-1/2 px-4 mb-8 md:mb-0">
+          <img src={product.image} alt={product.name} class="w-full md:w-3/4 h-auto rounded-lg shadow-lg mx-auto">
+        </div>
+        <div class="w-full md:w-1/2 px-4">
+          <h1 class="text-3xl font-bold mb-4">{product.name}</h1>
+          <p class="text-gray-600 mb-4">Collection: {product.collection}</p>
+          <p class="text-2xl font-bold mb-2">₹{product.price.toLocaleString()}</p>
+          <p class="text-gray-500 line-through mb-4">MRP: ₹{product.mrp.toLocaleString()}</p>
+          <button id="addToCartBtn" class="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition-colors">
+            Add to Cart
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="fixed bottom-5 right-5 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg transition-opacity duration-300 opacity-0">
+    Product added to cart successfully!
+  </div>
+</Layout>
+
+<style>
+  #toast {
+    pointer-events: none;
+  }
+</style>
+
+<script define:vars={{ product }}>
+  async function addToCartClient(productId, name, price, quantity) {
+    const url = "https://commerce-tarframework.turso.io/v2/pipeline";
+    const authToken = "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3Mjk2NzQwNjQsImlkIjoiN2ZiNTFhMTgtYjU1My00Y2M2LTkwZWItZDE0ZTcxNDI5ODlhIn0.zxIjODPlBzNcAgQQ70xZj2sI7j7RSAHpYPQUtvyoAHDb4nLGzHAPiVvnJ6qeK7-00F8A6Lz__CSPjdITPZ31BQ";
+
+    const userid = 1; // Hardcoded for now
+
+    const requestBody = JSON.stringify({
+      requests: [
+        { 
+          type: "execute", 
+          stmt: { 
+            sql: "INSERT INTO cart (userid, product_id, name, price, quantity) VALUES (?, ?, ?, ?, ?)",
+            args: [
+              { type: "integer", value: userid },
+              { type: "integer", value: productId },
+              { type: "text", value: name },
+              { type: "float", value: price },
+              { type: "integer", value: quantity }
+            ]
+          } 
+        },
+        { type: "close" },
+      ],
+    });
+
+    console.log('Request body:', requestBody);
+
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+          "Content-Type": "application/json",
+        },
+        body: requestBody,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Response error:', errorText);
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+      }
+
+      const data = await response.json();
+      console.log('Response data:', data);
+      return { success: true, data };
+    } catch (error) {
+      console.error('Error adding to cart:', error);
+      return { success: false, error: error.message || 'Failed to add to cart' };
+    }
+  }
+
+  document.getElementById('addToCartBtn').addEventListener('click', async () => {
+    const result = await addToCartClient(product.id, product.name, product.price, 1);
+    if (result.success) {
+      const toast = document.getElementById('toast');
+      toast.classList.remove('opacity-0');
+      setTimeout(() => {
+        toast.classList.add('opacity-0');
+      }, 3000);
+    } else {
+      alert('Failed to add product to cart: ' + result.error);
+    }
+  });
+</script>

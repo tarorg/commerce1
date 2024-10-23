@@ -1,0 +1,152 @@
+---
+interface Product {
+  id: number;
+  name: string;
+  collection: string;
+  price: number;
+  mrp: number;
+  image: string;
+}
+
+const url = "https://commerce-tarframework.turso.io/v2/pipeline";
+const authToken = "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3Mjk2NzQwNjQsImlkIjoiN2ZiNTFhMTgtYjU1My00Y2M2LTkwZWItZDE0ZTcxNDI5ODlhIn0.zxIjODPlBzNcAgQQ70xZj2sI7j7RSAHpYPQUtvyoAHDb4nLGzHAPiVvnJ6qeK7-00F8A6Lz__CSPjdITPZ31BQ";
+
+let products: Product[] = [];
+let collections: string[] = [];
+let error: string | null = null;
+
+try {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${authToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      requests: [
+        { type: "execute", stmt: { sql: "SELECT * FROM Instances" } },
+        { type: "close" },
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  const data = await response.json();
+
+  if (data.results && data.results[0] && data.results[0].response && data.results[0].response.result && data.results[0].response.result.rows) {
+    products = data.results[0].response.result.rows.map((row: any[]) => {
+      let imageValue = row[11].value;
+      let firstImage = '/path/to/default-image.jpg';
+
+      if (imageValue) {
+        const imageUrls = imageValue.split(',').map((url: string) => url.trim());
+        if (imageUrls.length > 0) {
+          firstImage = imageUrls[0];
+        }
+      }
+
+      return {
+        id: parseInt(row[0].value) || 0,
+        name: row[2].value || 'Unknown',
+        collection: row[5].value || 'Unknown',
+        price: parseInt(row[15].value) || 0,
+        mrp: parseInt(row[16].value) || 0,
+        image: firstImage
+      };
+    });
+
+    // Extract unique collections
+    collections = Array.from(new Set(products.map(p => p.collection))).sort();
+    collections.unshift('All'); // Add 'All' option at the beginning
+  } else {
+    throw new Error('Unexpected API response structure');
+  }
+} catch (e) {
+  console.error('Error fetching products:', e);
+  error = e instanceof Error ? e.message : 'An unknown error occurred';
+}
+---
+
+<section class="py-12 bg-white">
+  <div class="container mx-auto px-4">
+    <h2 class="text-3xl font-semibold mb-8">The Perfect Layers</h2>
+    
+    {error ? (
+      <p class="text-red-500">Error: {error}</p>
+    ) : (
+      <>
+        <div class="mb-8 flex flex-wrap gap-2">
+          {collections.map((collection) => (
+            <button class="choice-chip px-4 py-2 rounded-full border border-gray-300 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400" data-collection={collection}>
+              {collection}
+            </button>
+          ))}
+        </div>
+
+        <div id="product-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {products.map((product) => (
+            <a href={`/product/${product.id}`} class="product-card bg-gray-100 p-4 rounded-lg cursor-pointer" data-collection={product.collection}>
+              <img src={product.image} alt={product.name} class="w-full h-64 object-cover mb-4 rounded"/>
+              <h3 class="text-lg font-medium mb-2">{product.name}</h3>
+              <p class="text-sm text-gray-600 mb-2">Collection: {product.collection}</p>
+              <p class="text-lg font-bold mb-1">₹{product.price.toLocaleString()}</p>
+              <p class="text-sm text-gray-500 line-through">MRP: ₹{product.mrp.toLocaleString()}</p>
+            </a>
+          ))}
+        </div>
+      </>
+    )}
+  </div>
+</section>
+
+<style>
+  .product-card {
+    position: relative;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.3s ease;
+  }
+  .product-card:hover {
+    transform: translateY(-5px);
+  }
+  .choice-chip {
+    background-color: white;
+    transition: all 0.3s ease;
+  }
+  .choice-chip.active {
+    background-color: #E5E7EB;
+    color: #111827;
+    border-color: #9CA3AF;
+  }
+</style>
+
+<script>
+  const choiceChips = document.querySelectorAll('.choice-chip');
+  const productCards = document.querySelectorAll('.product-card');
+
+  choiceChips.forEach(chip => {
+    chip.addEventListener('click', () => {
+      const selectedCollection = chip.getAttribute('data-collection');
+      
+      choiceChips.forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+
+      productCards.forEach((card) => {
+        if (selectedCollection === 'All' || card.getAttribute('data-collection') === selectedCollection) {
+          (card as HTMLElement).style.display = 'flex';
+        } else {
+          (card as HTMLElement).style.display = 'none';
+        }
+      });
+    });
+  });
+
+  const defaultChip = document.querySelector('.choice-chip[data-collection="All"]');
+  if (defaultChip) {
+    defaultChip.classList.add('active');
+  }
+</script>

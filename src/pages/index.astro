@@ -1,0 +1,38 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Hero1 from '../components/Hero1.astro';
+import ProductList from '../components/ProductList.astro';
+// Other imports...
+
+// Check if there are any props being passed to Hero
+---
+
+<Layout title="Your Jewelry Store" isHomePage={true}>
+  <main>
+    <Hero1 />
+    <ProductList />
+    <!-- Add other sections here -->
+  </main>
+</Layout>
+
+<script>
+  const navbar = document.querySelector('nav');
+  const hero = document.querySelector('.hero');
+
+  function updateNavbarBackground() {
+    if (hero && navbar) {
+      const heroBottom = hero.getBoundingClientRect().bottom;
+      if (heroBottom <= 0) {
+        navbar.classList.remove('bg-transparent');
+        navbar.classList.add('bg-black');
+      } else {
+        navbar.classList.remove('bg-black');
+        navbar.classList.add('bg-transparent');
+      }
+    }
+  }
+
+  window.addEventListener('scroll', updateNavbarBackground);
+  window.addEventListener('resize', updateNavbarBackground);
+  updateNavbarBackground(); // Initial call
+</script>
