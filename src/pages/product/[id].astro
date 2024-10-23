@@ -148,11 +148,11 @@ async function addToCart(productId: number, name: string, price: number, quantit
           stmt: { 
             sql: "INSERT INTO cart (userid, product_id, name, price, quantity) VALUES (?, ?, ?, ?, ?)",
             args: [
-              { type: "integer", value: userid },
-              { type: "integer", value: productId },
+              { type: "text", value: userid.toString() },
+              { type: "text", value: productId.toString() },
               { type: "text", value: name },
-              { type: "float", value: price },
-              { type: "integer", value: quantity }
+              { type: "text", value: price.toString() },
+              { type: "text", value: quantity.toString() }
             ]
           } 
         },
