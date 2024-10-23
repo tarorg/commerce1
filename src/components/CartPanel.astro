@@ -1,18 +1,165 @@
 ---
+// We'll keep the server-side part minimal
 ---
 
-<div id="cartPanel" class="fixed top-0 right-0 h-full w-80 bg-white shadow-lg transform translate-x-full transition-transform duration-300 ease-in-out z-50">
-  <div class="p-4">
+<div id="cartPanel" class="fixed top-0 right-0 h-full w-80 bg-white shadow-lg transform translate-x-full transition-transform duration-300 ease-in-out z-50 flex flex-col">
+  <div class="p-4 flex-grow overflow-y-auto">
     <div class="flex justify-between items-center mb-4">
-      <h2 class="text-xl font-bold">Your Cart</h2>
-      <button id="closeCart" class="text-gray-500 hover:text-gray-700">
+      <h2 class="text-xl font-bold text-gray-800">Your Cart</h2>
+      <button id="closeCart" class="text-gray-500 hover:text-gray-700 transition-colors">
         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
         </svg>
       </button>
     </div>
-    <div id="cartItems" class="space-y-2">
+    <div id="cartItems" class="space-y-4">
       <!-- Cart items will be dynamically inserted here -->
     </div>
   </div>
+  <div class="p-4 border-t border-gray-200">
+    <div id="cartTotal" class="text-lg font-semibold text-gray-800 mb-4">
+      Total: ₹0.00
+    </div>
+    <button id="checkoutButton" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition-colors duration-300">
+      Proceed to Checkout
+    </button>
+  </div>
 </div>
+
+<script>
+  const cartPanel = document.getElementById('cartPanel');
+  const closeCartButton = document.getElementById('closeCart');
+  const cartItemsContainer = document.getElementById('cartItems');
+  const cartTotalElement = document.getElementById('cartTotal');
+  const checkoutButton = document.getElementById('checkoutButton');
+
+  interface CartItem {
+    id: string;
+    userid: string;
+    productId: string;
+    name: string;
+    price: number;
+    quantity: number;
+  }
+
+  async function fetchCartItems(): Promise<CartItem[]> {
+    const url = "https://commerce-tarframework.turso.io/v2/pipeline";
+    const authToken = "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3Mjk2NzQwNjQsImlkIjoiN2ZiNTFhMTgtYjU1My00Y2M2LTkwZWItZDE0ZTcxNDI5ODlhIn0.zxIjODPlBzNcAgQQ70xZj2sI7j7RSAHpYPQUtvyoAHDb4nLGzHAPiVvnJ6qeK7-00F8A6Lz__CSPjdITPZ31BQ";
+
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          requests: [
+            { 
+              type: "execute", 
+              stmt: { 
+                sql: "SELECT * FROM cart",
+              } 
+            },
+            { type: "close" },
+          ],
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('Raw API response:', JSON.stringify(data, null, 2));
+
+      if (data && data.results && data.results[0] && data.results[0].response && data.results[0].response.result && data.results[0].response.result.rows) {
+        const items = data.results[0].response.result.rows.map((row: any[]) => ({
+          id: row[0].value,
+          userid: row[1].value,
+          productId: row[2].value,
+          name: row[3].value,
+          price: parseFloat(row[4].value),
+          quantity: parseInt(row[5].value),
+        }));
+
+        // Combine items with the same name
+        const combinedItems = items.reduce((acc: CartItem[], item: CartItem) => {
+          const existingItem = acc.find(i => i.name === item.name);
+          if (existingItem) {
+            existingItem.quantity += item.quantity;
+          } else {
+            acc.push(item);
+          }
+          return acc;
+        }, []);
+
+        return combinedItems;
+      } else {
+        console.error('Unexpected data structure:', data);
+        throw new Error('Unexpected data structure from API');
+      }
+    } catch (e) {
+      console.error('Error fetching cart items:', e);
+      throw e;
+    }
+  }
+
+  function displayCartItems(items: CartItem[]) {
+    if (!cartItemsContainer) return;
+    
+    cartItemsContainer.innerHTML = '';
+    if (items.length === 0) {
+      cartItemsContainer.innerHTML = '<p class="text-gray-500">Your cart is empty.</p>';
+    } else {
+      items.forEach(item => {
+        const itemElement = document.createElement('div');
+        itemElement.className = 'flex items-center justify-between py-2 border-b border-gray-200 last:border-b-0';
+        itemElement.innerHTML = `
+          <div class="flex-grow">
+            <h3 class="text-sm font-medium text-gray-800">${item.name}</h3>
+            <p class="text-sm text-gray-500">Quantity: ${item.quantity}</p>
+          </div>
+          <span class="text-sm font-medium text-gray-800">₹${(item.price * item.quantity).toLocaleString()}</span>
+        `;
+        cartItemsContainer.appendChild(itemElement);
+      });
+    }
+
+    updateCartTotal(items);
+  }
+
+  function updateCartTotal(items: CartItem[]) {
+    const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    if (cartTotalElement) {
+      cartTotalElement.textContent = `Total: ₹${total.toLocaleString()}`;
+    }
+  }
+
+  async function updateCartPanel() {
+    try {
+      const items = await fetchCartItems();
+      displayCartItems(items);
+    } catch (error) {
+      if (cartItemsContainer) {
+        cartItemsContainer.innerHTML = `<p class="text-red-500">Error: ${(error as Error).message}</p>`;
+      }
+    }
+  }
+
+  // Expose the updateCartPanel function globally
+  (window as any).updateCartPanel = updateCartPanel;
+
+  if (closeCartButton) {
+    closeCartButton.addEventListener('click', () => {
+      cartPanel?.classList.add('translate-x-full');
+    });
+  }
+
+  if (checkoutButton) {
+    checkoutButton.addEventListener('click', () => {
+      // Implement checkout logic here
+      console.log('Proceeding to checkout');
+    });
+  }
+</script>

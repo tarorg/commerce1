@@ -7,58 +7,6 @@ interface Props {
 }
 
 const { isTransparent = false } = Astro.props;
-
-// Fetch cart items
-const url = "https://commerce-tarframework.turso.io/v2/pipeline";
-const authToken = "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3Mjk2NzQwNjQsImlkIjoiN2ZiNTFhMTgtYjU1My00Y2M2LTkwZWItZDE0ZTcxNDI5ODlhIn0.zxIjODPlBzNcAgQQ70xZj2sI7j7RSAHpYPQUtvyoAHDb4nLGzHAPiVvnJ6qeK7-00F8A6Lz__CSPjdITPZ31BQ";
-
-let cartItems = [];
-let error = null;
-
-try {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${authToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      requests: [
-        { 
-          type: "execute", 
-          stmt: { 
-            sql: "SELECT * FROM cart",
-          } 
-        },
-        { type: "close" },
-      ],
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
-  }
-
-  const data = await response.json();
-  console.log('Raw API response:', JSON.stringify(data, null, 2));
-
-  if (data && data.results && data.results[0] && data.results[0].response && data.results[0].response.result && data.results[0].response.result.rows) {
-    cartItems = data.results[0].response.result.rows.map((row: any) => ({
-      id: row[0].value,
-      userid: row[1].value,
-      productId: row[2].value,
-      name: row[3].value,
-      price: parseFloat(row[4].value),
-      quantity: parseInt(row[5].value),
-    }));
-  } else {
-    console.error('Unexpected data structure:', data);
-    throw new Error('Unexpected data structure from API');
-  }
-} catch (e) {
-  console.error('Error fetching cart items:', e);
-  error = e instanceof Error ? e.message : 'An unknown error occurred';
-}
 ---
 
 <nav class={`antialiased fixed top-0 left-0 right-0 z-50 transition-colors duration-300 ${isTransparent ? 'bg-transparent' : 'bg-black'}`}>
@@ -214,39 +162,18 @@ try {
   }
 </style>
 
-<script define:vars={{ cartItems, error }}>
+<script>
   const cartButton = document.getElementById('cartButton');
   const cartPanel = document.getElementById('cartPanel');
-  const closeCartButton = document.getElementById('closeCart');
 
-  cartButton.addEventListener('click', () => {
-    cartPanel.classList.remove('translate-x-full');
-    displayCartItems(cartItems);
-  });
-
-  closeCartButton.addEventListener('click', () => {
-    cartPanel.classList.add('translate-x-full');
-  });
-
-  function displayCartItems(items) {
-    const cartItemsContainer = document.getElementById('cartItems');
-    cartItemsContainer.innerHTML = '';
-    if (error) {
-      cartItemsContainer.innerHTML = `<p class="text-red-500">Error: ${error}</p>`;
-    } else if (items.length === 0) {
-      cartItemsContainer.innerHTML = '<p>Your cart is empty.</p>';
-    } else {
-      items.forEach(item => {
-        const itemElement = document.createElement('div');
-        itemElement.className = 'flex items-center justify-between py-2';
-        itemElement.innerHTML = `
-          <span>${item.name}</span>
-          <span>Quantity: ${item.quantity}</span>
-          <span>₹${item.price.toLocaleString()}</span>
-        `;
-        cartItemsContainer.appendChild(itemElement);
-      });
-    }
+  if (cartButton && cartPanel) {
+    cartButton.addEventListener('click', () => {
+      cartPanel.classList.remove('translate-x-full');
+      // Call the updateCartPanel function when the cart button is clicked
+      if (typeof window.updateCartPanel === 'function') {
+        window.updateCartPanel();
+      }
+    });
   }
 
   // Optional: Update navbar background on scroll
@@ -266,7 +193,7 @@ try {
     }
   }
 
-  if (navbar.classList.contains('bg-transparent')) {
+  if (navbar && navbar.classList.contains('bg-transparent')) {
     window.addEventListener('scroll', updateNavbarBackground);
     window.addEventListener('resize', updateNavbarBackground);
     updateNavbarBackground(); // Initial call
