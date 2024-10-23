@@ -1,29 +1,31 @@
 ---
 import Navbar from '../components/Navbar.astro';
+import CartPanel from '../components/CartPanel.astro';
 
 interface Props {
 	title: string;
-	isHomePage?: boolean;
+	isTransparent?: boolean;
 }
 
-const { title, isHomePage = false } = Astro.props;
+const { title, isTransparent = false } = Astro.props;
 ---
 
 <!DOCTYPE html>
 <html lang="en">
 	<head>
-		<meta charset="UTF-8" />
-		<meta name="description" content="Astro description">
-		<meta name="viewport" content="width=device-width" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<meta name="generator" content={Astro.generator} />
-		<title>{title}</title>
+			<meta charset="UTF-8" />
+			<meta name="description" content="Astro description">
+			<meta name="viewport" content="width=device-width" />
+			<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+			<meta name="generator" content={Astro.generator} />
+			<title>{title}</title>
 	</head>
 	<body>
-		<Navbar isTransparent={isHomePage} />
+		<Navbar isTransparent={isTransparent} />
 		<main>
 			<slot />
 		</main>
+		<CartPanel />
 	</body>
 </html>
 <style is:global>
